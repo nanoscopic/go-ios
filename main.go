@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
@@ -49,6 +50,7 @@ func Main() {
 
 Usage:
   ios listen [options]
+  ios server --port=<port>
   ios list [options] [--details]
   ios info [options]
   ios image list [options]
@@ -94,6 +96,7 @@ The commands work as following:
 	Specify -v for debug logging and -t for dumping every message.
 
    ios listen [options]                                               Keeps a persistent connection open and notifies about newly connected or disconnected devices.
+   ios server --port=<port>                                           Start a HTTP server listening for commands
    ios list [options] [--details]                                     Prints a list of all connected device's udids. If --details is specified, it includes version, name and model of each device.
    ios info [options]                                                 Prints a dump of Lockdown getValues.
    ios image list [options]                                           List currently mounted developers images' signatures
@@ -173,6 +176,13 @@ The commands work as following:
 	if b {
 		startListening()
 		return
+	}
+	
+	b, _ = arguments.Bool("server")
+	if b {
+	  port, _ := arguments.Int("--port")
+	  runServer(port)
+	  return
 	}
 
 	listCommand, _ := arguments.Bool("list")
@@ -334,7 +344,7 @@ The commands work as following:
 		pairDevice(device, org, pwd)
 		return
 	}
-
+	
 	b, _ = arguments.Bool("readpair")
 	if b {
 		readPair(device)
@@ -751,6 +761,52 @@ func saveScreenshot(device ios.DeviceEntry, outputPath string) {
 	} else {
 		log.WithFields(log.Fields{"outputPath": outputPath}).Info("File saved successfully")
 	}
+}
+
+func runServer(port int) {
+  log.Debug(fmt.Sprintf("Starting HTTP server on port %d",port))
+  
+  shotServices := make( map[string]*screenshotr.Connection )
+  
+	listen_addr := fmt.Sprintf( "0.0.0.0:%d", port )
+	http.HandleFunc( "/frame", func( w http.ResponseWriter, r *http.Request ) {
+	  udidarr, gotUdid := r.URL.Query()["udid"]
+	  if !gotUdid {
+	    w.Write([]byte("must specify udid in url parameter"))
+	    return
+	  }
+	  udid := udidarr[0]
+	  
+	  shotService, haveService := shotServices[udid]
+	  
+	  if !haveService {
+      device, err := ios.GetDevice(udid)
+      if err != nil {
+        w.Write([]byte("error getting device"))
+        return
+      }
+      
+      screenshotrService, err := screenshotr.New(device)
+      if err != nil {
+        w.Write([]byte("error starting screenshot service"))
+        return
+      }
+      
+      shotServices[udid] = screenshotrService
+      shotService = screenshotrService
+    }
+	  
+    imageBytes, err := shotService.TakeScreenshot()
+    if err == nil {
+      w.Header().Set("Content-Type", "image/png")
+      w.Write(imageBytes)
+    } else {
+      w.Write([]byte("error"))
+    }
+  } )
+	
+	err := http.ListenAndServe(listen_addr, nil)
+	exitIfError("Error starting HTTP server", err)
 }
 
 func processList(device ios.DeviceEntry) {
