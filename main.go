@@ -75,6 +75,7 @@ Usage:
   ios apps [--system] [options]
   ios launch <bundleID> [options]
   ios kill <bundleID> [options]
+  ios killid <processID> [options]
   ios runtest <bundleID> [options]
   ios runwda [--bundleid=<bundleid>] [--testrunnerbundleid=<testbundleid>] [--xctestconfig=<xctestconfig>] [--arg=<a>]... [--env=<e>]... [options]
   ios ax [options]
@@ -130,6 +131,7 @@ The commands work as following:
    ios apps [--system]                                                Retrieves a list of installed applications. --system prints out preinstalled system apps.
    ios launch <bundleID>                                              Launch app with the bundleID on the device. Get your bundle ID from the apps command.
    ios kill <bundleID> [options]                                      Kill app with the bundleID on the device.
+   ios killid <processID> [options]                                   Kill process with a specific process ID.
    ios runtest <bundleID>                                             Run a XCUITest. 
    ios runwda [--bundleid=<bundleid>] [--testrunnerbundleid=<testbundleid>] [--xctestconfig=<xctestconfig>] [--arg=<a>]... [--env=<e>]...[options]  runs WebDriverAgents
    >                                                                  specify runtime args and env vars like --env ENV_1=something --env ENV_2=else  and --arg ARG1 --arg ARG2
@@ -407,7 +409,17 @@ The commands work as following:
 		log.Error(bundleID, "not installed")
 		return
 	}
-
+	
+	b, _ = arguments.Bool("killid")
+	if b {
+	  Pid, _ := arguments.Float64("<processID>")
+	  
+	  pControl, err := instruments.NewProcessControl(device)
+		exitIfError("processcontrol failed", err)
+	  err = pControl.KillProcess(uint64(Pid))
+		exitIfError("kill process failed", err)
+	}
+	  
 	b, _ = arguments.Bool("runtest")
 	if b {
 		bundleID, _ := arguments.String("<bundleID>")
