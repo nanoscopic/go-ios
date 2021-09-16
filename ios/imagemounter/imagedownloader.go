@@ -17,6 +17,22 @@ const repo = "https://github.com/haikieu/xcode-developer-disk-image-all-platform
 const imagepath = "devimages"
 const developerDiskImageDmg = "DeveloperDiskImage.dmg"
 
+func GetFileForVersion(version string) string {
+  res, err := http.Head( fmt.Sprintf( repo, version ) )
+	if err == nil && res.StatusCode != 404 { return version }
+	
+	versionParts := strings.Split(version, ".")
+	if len( versionParts ) != 3 {
+	  return ""
+	}
+	
+	twoPartVersion := versionParts[0] + "." + versionParts[1]
+	res, err = http.Head( fmt.Sprintf( repo, twoPartVersion ) )
+	if err == nil && res.StatusCode != 404 { return twoPartVersion }
+	
+	return ""
+}
+
 func DownloadImageFor(device ios.DeviceEntry, baseDir string) (string, error) {
 	allValues, err := ios.GetValues(device)
 	if err != nil {
@@ -33,7 +49,13 @@ func DownloadImageFor(device ios.DeviceEntry, baseDir string) (string, error) {
 	}
 
 	log.Infof("getting developer image for iOS %s", version)
-	downloadUrl := fmt.Sprintf(repo, version)
+		
+	versionToUse := GetFileForVersion(version)
+	if versionToUse == "" {
+	  // should actually be error; TODO
+	  versionToUse = version
+	}
+	downloadUrl := fmt.Sprintf(repo, versionToUse)
 	log.Infof("downloading from: %s", downloadUrl)
 	log.Info("thank you haikieu for making these images available :-)")
 	zipFileName := path.Join(baseDir, imagepath, fmt.Sprintf("%s.zip", version))
