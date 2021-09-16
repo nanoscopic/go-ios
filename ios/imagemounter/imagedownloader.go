@@ -61,8 +61,19 @@ func DownloadImageFor(device ios.DeviceEntry, baseDir string) (string, error) {
 }
 
 func findImage(dir string, version string) (string, error) {
-	imageToFind := fmt.Sprintf("%s/%s", version, developerDiskImageDmg)
-	var imageWeFound string
+	versionParts := strings.Split(version, ".")
+	twoPartVersion := ""
+	if len( versionParts ) == 3 {
+	  twoPartVersion = versionParts[0] + "." + versionParts[1]
+	}
+  
+  imageToFind := fmt.Sprintf("%s/%s", version, developerDiskImageDmg)
+  twoPartImageToFind := ""
+  if twoPartVersion != "" {
+    twoPartImageToFind = fmt.Sprintf("%s/%s", twoPartVersion, developerDiskImageDmg)
+  }
+	imageWeFound := ""
+	twoPartImageWeFound := ""
 	err := filepath.Walk(dir,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -71,6 +82,9 @@ func findImage(dir string, version string) (string, error) {
 			if strings.HasSuffix(path, imageToFind) {
 				imageWeFound = path
 			}
+			if twoPartImageToFind != "" && strings.HasSuffix(path, twoPartImageToFind) {
+			  twoPartImageWeFound = path
+			}
 			return nil
 		})
 	if err != nil {
@@ -78,6 +92,9 @@ func findImage(dir string, version string) (string, error) {
 	}
 	if imageWeFound != "" {
 		return imageWeFound, nil
+	}
+	if twoPartImageWeFound != "" {
+	  return twoPartImageWeFound, nil
 	}
 	return "", fmt.Errorf("image not found")
 }
